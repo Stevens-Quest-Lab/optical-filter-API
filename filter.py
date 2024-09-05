@@ -1,6 +1,7 @@
 import serial
 import serial.tools.list_ports_windows
 import numpy as np
+import warnings
 from typing import Optional, Tuple, Any
 from collections.abc import Callable
 
@@ -67,32 +68,29 @@ def scan(ser:serial.Serial, start:int, end:int, stay:np.floating, span:int, supr
 
     return start_prev, end_prev, stay_prev
 
-def set_channel(ser:serial.Serial, wl:int) -> int:
+def set_channel(ser:serial.Serial, wl:np.floating, suppress_output:bool = False) -> int:
     ser.reset_input_buffer()
     ser.reset_output_buffer()
-    if wl < 1510 or wl > 1589:
+    wl_int = int(np.round(wl))
+    wl_fl = int(np.round((wl - wl_int) / 0.2))
+    if wl_int < 1510 or wl_int > 1589:
         raise ValueError(f"The wavelength has to be between 1510 and 1589, got {wl}.")
     try:
-        write_and_read(ser, str(wl).zfill(4), 'C', ' ', ',', None)
+        write_and_read(ser, str(wl_int).zfill(4), 'C', ' ', ',', None)
     except:
         return -1
-    return 0
-
-def change_channel(ser:serial.Serial, delta:int) -> int:
-    ser.reset_input_buffer()
-    ser.reset_output_buffer()
-    if delta == 0: return 0
-    elif delta < -30 or delta > 30:
-        raise ValueError(f"The delta has to be between -30 and 30, got {delta}.")
-    if delta < 0:
-        try: 
-            write_and_read(ser, str(-delta).zfill(4), 'D', ' ', ',', None)
-        except:
-            return -1
+    if not suppress_output and wl - (wl_int + wl_fl * 0.2) > 1e-6:
+            warnings.warn(f"{wl} not achieveable, setting to closest wavelength {wl_int + wl_fl * 0.2}")
+    if wl_fl == 0: return 0
     else:
-        try:
-            write_and_read(ser, str(delta).zfill(4), 'I', ' ', ',', None)
-        except:
-            return -1
-    return 0
-    
+        if wl_fl < 0:
+            try: 
+                write_and_read(ser, str(-wl_fl).zfill(4), 'D', ' ', ',', None)
+            except:
+                return -1
+        else:
+            try:
+                write_and_read(ser, str(wl_fl).zfill(4), 'I', ' ', ',', None)
+            except:
+                return -1
+        return 0
